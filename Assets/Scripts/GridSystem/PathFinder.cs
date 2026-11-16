@@ -1,114 +1,157 @@
 using System.Collections.Generic;
-using UnityEditor;
 using UnityEngine;
 
+/// <summary>
+/// Binary-heap A* on the 4-connected cell grid. Buffers are reused between calls (no per-call allocations).
+/// The start cell may be non-walkable (a worker standing next to something), the goal must be walkable.
+/// </summary>
 public static class PathFinder
 {
-    public static List<Tile> FindPath(Tile start, Tile goal)
+    private static float[] gScore;
+    private static int[] parent;
+    private static int[] closedStamp;
+    private static int[] openStamp;
+    private static int stamp;
+    private static int gridW, gridH;
+
+    // heap storage
+    private static int[] heapCell = new int[256];
+    private static float[] heapF = new float[256];
+    private static int heapCount;
+
+    private static readonly int[] dx = { 0, -1, 1, 0 };
+    private static readonly int[] dy = { -1, 0, 0, 1 };
+
+    private static void EnsureBuffers(int w, int h)
     {
-        List<Tile> openSet = new List<Tile> { start };
-        HashSet<Tile> closedSet = new HashSet<Tile>();
+        if (gridW == w && gridH == h && gScore != null) return;
+        gridW = w; gridH = h;
+        int n = w * h;
+        gScore = new float[n];
+        parent = new int[n];
+        closedStamp = new int[n];
+        openStamp = new int[n];
+        stamp = 0;
+    }
 
-        Dictionary<Tile, Tile> cameFrom = new Dictionary<Tile, Tile>();
-        Dictionary<Tile, float> gScore = new Dictionary<Tile, float> { [start] = 0 };
-        Dictionary<Tile, float> fScore = new Dictionary<Tile, float> { [start] = Heuristic(start, goal) };
-
-        while (openSet.Count > 0)
+    private static void HeapPush(int cell, float f)
+    {
+        if (heapCount == heapCell.Length)
         {
-            // Find lowest fScore
-            Tile current = openSet[0];
-            foreach (Tile t in openSet)
+            System.Array.Resize(ref heapCell, heapCount * 2);
+            System.Array.Resize(ref heapF, heapCount * 2);
+        }
+        int i = heapCount++;
+        while (i > 0)
+        {
+            int p = (i - 1) >> 1;
+            if (heapF[p] <= f) break;
+            heapCell[i] = heapCell[p];
+            heapF[i] = heapF[p];
+            i = p;
+        }
+        heapCell[i] = cell;
+        heapF[i] = f;
+    }
+
+    private static int HeapPop()
+    {
+        int top = heapCell[0];
+        heapCount--;
+        if (heapCount > 0)
+        {
+            int cell = heapCell[heapCount];
+            float f = heapF[heapCount];
+            int i = 0;
+            while (true)
             {
-                if (fScore.ContainsKey(t) && fScore[t] < fScore[current])
-                    current = t;
+                int l = i * 2 + 1;
+                if (l >= heapCount) break;
+                int r = l + 1;
+                int c = (r < heapCount && heapF[r] < heapF[l]) ? r : l;
+                if (heapF[c] >= f) break;
+                heapCell[i] = heapCell[c];
+                heapF[i] = heapF[c];
+                i = c;
+            }
+            heapCell[i] = cell;
+            heapF[i] = f;
+        }
+        return top;
+    }
+
+    /// <summary>Fills <paramref name="result"/> with the cells to walk (start excluded, goal included).</summary>
+    public static bool FindPath(Vector2Int start, Vector2Int goal, List<Vector2Int> result)
+    {
+        result.Clear();
+        var grid = GridManager.instance;
+        if (grid == null) return false;
+        if (!grid.InBounds(start) || !grid.InBounds(goal)) return false;
+        if (start == goal) return true;
+        if (!grid.GetCell(goal).Walkable) return false;
+
+        int w = grid.width, h = grid.height;
+        EnsureBuffers(w, h);
+        stamp++;
+        heapCount = 0;
+
+        int startIdx = start.y * w + start.x;
+        int goalIdx = goal.y * w + goal.x;
+
+        gScore[startIdx] = 0f;
+        parent[startIdx] = -1;
+        openStamp[startIdx] = stamp;
+        HeapPush(startIdx, Manhattan(start.x, start.y, goal.x, goal.y));
+
+        while (heapCount > 0)
+        {
+            int cur = HeapPop();
+            if (closedStamp[cur] == stamp) continue; // stale duplicate
+            closedStamp[cur] = stamp;
+
+            if (cur == goalIdx)
+            {
+                Reconstruct(cur, startIdx, w, result);
+                return true;
             }
 
-            if (current == goal)
-                return ReconstructPath(cameFrom, current);
-
-            openSet.Remove(current);
-            closedSet.Add(current);
-
-            foreach (Tile neighbor in GetNeighbors(current))
+            int cx = cur % w, cy = cur / w;
+            for (int d = 0; d < 4; d++)
             {
-                if (neighbor.IsOccupied || closedSet.Contains(neighbor))
-                    continue;
+                int nx = cx + dx[d], ny = cy + dy[d];
+                if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+                int ni = ny * w + nx;
+                if (closedStamp[ni] == stamp) continue;
 
-                float tentativeG = gScore[current] + neighbor.MoveCost;
+                Cell nc = grid.GetCell(nx, ny);
+                if (!nc.Walkable) continue;
 
-                if (!gScore.ContainsKey(neighbor) || tentativeG < gScore[neighbor])
+                float tentative = gScore[cur] + nc.moveCost;
+                if (openStamp[ni] != stamp || tentative < gScore[ni])
                 {
-                    cameFrom[neighbor] = current;
-                    gScore[neighbor] = tentativeG;
-                    fScore[neighbor] = tentativeG + Heuristic(neighbor, goal);
-
-                    if (!openSet.Contains(neighbor))
-                        openSet.Add(neighbor);
+                    openStamp[ni] = stamp;
+                    gScore[ni] = tentative;
+                    parent[ni] = cur;
+                    HeapPush(ni, tentative + Manhattan(nx, ny, goal.x, goal.y));
                 }
             }
         }
-
-        return null; // No path found
+        return false;
     }
-    static float Heuristic(Tile a, Tile b)
+
+    private static float Manhattan(int ax, int ay, int bx, int by)
     {
-        return Vector2Int.Distance(a.GridPosition, b.GridPosition);
+        return Mathf.Abs(ax - bx) + Mathf.Abs(ay - by);
     }
-    static List<Tile> ReconstructPath(Dictionary<Tile, Tile> cameFrom, Tile current)
+
+    private static void Reconstruct(int goalIdx, int startIdx, int w, List<Vector2Int> result)
     {
-        List<Tile> totalPath = new List<Tile> { current };
-        while (cameFrom.ContainsKey(current))
+        int cur = goalIdx;
+        while (cur != startIdx && cur >= 0)
         {
-            current = cameFrom[current];
-            totalPath.Insert(0, current);
+            result.Add(new Vector2Int(cur % w, cur / w));
+            cur = parent[cur];
         }
-        return totalPath;
-    }
-    static List<Tile> GetNeighbors(Tile tile)
-    {
-        List<Tile> neighbors = new List<Tile>();
-        Vector2Int[] directions = new Vector2Int[]
-        {
-            new Vector2Int(1,0), new Vector2Int(-1,0),
-            new Vector2Int(0,1), new Vector2Int(0,-1)
-        };
-
-        foreach (var dir in directions)
-        {
-            Tile neighbor = GridManager.instance.GetTile(tile.GridPosition.x + dir.x, tile.GridPosition.y + dir.y);
-            if (neighbor != null)
-                neighbors.Add(neighbor);
-        }
-
-        return neighbors;
-    }
-    public static Tile GetFreeNeighborTile(Tile resourceTile)
-    {
-        Vector2Int[] dirs = new Vector2Int[]
-        {
-        new Vector2Int(1, 0),   // East
-        new Vector2Int(-1, 0),  // West
-        new Vector2Int(0, 1),   // North
-        new Vector2Int(0, -1)   // South
-        };
-
-        // Shuffle directions
-        for (int i = 0; i < dirs.Length; i++)
-        {
-            int rnd = Random.Range(i, dirs.Length);
-            Vector2Int temp = dirs[i];
-            dirs[i] = dirs[rnd];
-            dirs[rnd] = temp;
-        }
-
-        foreach (Vector2Int dir in dirs)
-        {
-            Tile neighbor = GridManager.instance.GetTile(resourceTile.GridPosition.x + dir.x,
-                                                        resourceTile.GridPosition.y + dir.y);
-            if (neighbor != null && !neighbor.IsOccupied)
-                return neighbor;
-        }
-
-        return null;
+        result.Reverse();
     }
 }
