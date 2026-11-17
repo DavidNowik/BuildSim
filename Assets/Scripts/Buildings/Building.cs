@@ -13,11 +13,21 @@ public class Building : MonoBehaviour
     [Header("Building Settings")]
     public string displayName = "Building";
     public BuildingRole role = BuildingRole.Generic;
+    [Tooltip("Which build menu layer lists this building")]
+    public BuildCategory category = BuildCategory.Materials;
     public Vector2Int footprint = new Vector2Int(2, 1);
     public int costWood;
     public int costStone;
-    [Tooltip("Maximum number of workers that can live in (and sleep in) this building")]
+    [Tooltip("Worker slots of this workplace")]
     [FormerlySerializedAs("beds")] public int maxWorkers;
+
+    /// <summary>Set by the player: how many workers this workplace should get, and how soon (5 = first served, 1 = last).</summary>
+    [HideInInspector] public int wanted;
+    [HideInInspector] public int priority = 3;
+    public bool IsWorkplace => ResourceInfo.KindFor(role) != ResourceKind.None;
+
+    public void SetWanted(int n) { wanted = Mathf.Clamp(n, 0, maxWorkers); if (BuildingManager.instance != null) BuildingManager.instance.Rebalance(); }
+    public void SetPriority(int p) { priority = Mathf.Clamp(p, 1, 5); if (BuildingManager.instance != null) BuildingManager.instance.Rebalance(); }
 
     public Cost Cost => new Cost(costWood, costStone);
     public Vector2Int Anchor { get; private set; }

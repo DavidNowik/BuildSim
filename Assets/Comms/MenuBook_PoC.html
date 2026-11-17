@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Menubuch PoC</title>
+<style>
+:root{--bg:#0c0f2a;--panel:#161a3d;--panel2:#1f2550;--line:#3a4180;--ink:#e8ecff;--dim:#8c93c8;--accent:#f2c14e;--ok:#6fcf7f;--lock:#4a4f7a}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:#05071a;color:var(--ink);font:15px/1.4 system-ui,sans-serif;display:flex;align-items:center;justify-content:center;padding:16px}
+.book{width:min(1100px,100%);background:var(--panel);border:3px solid var(--line);border-radius:10px}
+.marks{display:flex;gap:6px;padding:10px 10px 0;background:var(--bg);border-bottom:3px solid var(--line);border-radius:7px 7px 0 0;overflow-x:auto}
+.mark{min-width:62px;padding:8px 6px 7px;border:3px solid var(--line);border-bottom:none;border-radius:8px 8px 0 0;background:var(--panel);color:var(--dim);font:inherit;font-weight:700;cursor:pointer;text-align:center;position:relative;top:3px}
+.mark small{display:block;font-weight:400;font-size:11px}
+.mark:hover{color:var(--ink)}
+.mark.on{background:var(--panel2);color:var(--accent);padding-bottom:10px}
+.page{padding:18px 20px 20px;min-height:520px}
+.page h2{margin:0 0 2px;font-size:22px;color:var(--accent)}
+.page p.sub{margin:0 0 14px;color:var(--dim)}
+.empty{color:var(--dim);padding:60px 0;text-align:center}
+.chart{position:relative;display:grid;grid-template-columns:repeat(4,1fr);background:var(--bg);border:2px solid var(--line);border-radius:6px;overflow:hidden}
+.tier{padding:34px 10px 14px;display:flex;flex-direction:column;justify-content:space-around;gap:14px;min-height:430px;position:relative;z-index:1}
+.tier+.tier{border-left:2px dashed var(--line)}
+.tier>b{position:absolute;top:8px;left:0;right:0;text-align:center;font-size:12px;letter-spacing:.1em;color:var(--dim);font-weight:700}
+.node{margin:0 auto;width:min(150px,100%);padding:8px 6px;text-align:center;background:var(--panel2);border:3px solid var(--line);border-radius:8px;cursor:pointer;font-weight:700;position:relative}
+.node i{display:block;width:26px;height:26px;margin:0 auto 4px;border:2px solid #05071a;border-radius:5px}
+.node.ok{border-color:var(--ok)}
+.node.lock{color:var(--lock);border-style:dashed}
+.node.lock i{filter:grayscale(1) brightness(.5)}
+.node.sel{box-shadow:0 0 0 3px var(--accent)}
+svg{position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
+svg path{fill:none;stroke:var(--line);stroke-width:3}
+svg path.hi{stroke:var(--accent)}
+.info{max-height:170px;overflow:auto;margin-top:12px;padding:10px 14px;background:var(--panel2);border:2px solid var(--line);border-radius:6px;min-height:64px}
+.info b{color:var(--accent)}
+.legend{margin-top:8px;color:var(--dim);font-size:12px}
+.chip{display:inline-block;margin:3px 4px 0 0;padding:3px 10px;border:2px solid var(--accent);border-radius:14px;background:var(--bg);color:var(--accent);font:inherit;font-weight:700;cursor:pointer}
+.chip:hover{background:var(--accent);color:var(--bg)}
+.chip.res{border-color:var(--line);color:var(--ink)}
+.chip.res:hover{background:var(--line)}
+.bk{display:grid;grid-template-columns:230px 1fr;gap:14px}
+.blist{max-height:470px;overflow:auto;background:var(--bg);border:2px solid var(--line);border-radius:6px;padding:6px}
+.bi{display:block;width:100%;text-align:left;margin-bottom:5px;padding:8px 10px;border:2px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--ink);font:inherit;font-weight:700;cursor:pointer}
+.bi small{display:block;font-weight:400;color:var(--dim)}
+.bi.sel{border-color:var(--accent);color:var(--accent)}
+.bview{background:var(--bg);border:2px solid var(--line);border-radius:6px;padding:14px 18px;min-height:300px}
+.bview h3{margin:0 0 4px;color:var(--accent);font-size:20px}
+.bview h4{margin:14px 0 4px;color:var(--dim);font-size:12px;letter-spacing:.1em}
+.pic{float:right;width:120px;height:120px;margin:0 0 10px 14px;border:3px dashed var(--line);border-radius:8px;display:flex;align-items:center;justify-content:center;color:var(--dim);font-size:12px;text-align:center}
+.rec{display:flow-root;padding:6px 0;border-bottom:1px solid var(--line)}
+@media(max-width:700px){.bk{grid-template-columns:1fr}}
+@media(max-width:700px){.tier{min-height:340px}.node{font-size:12px}}
+</style>
+</head>
+<body>
+<div class="book">
+  <div class="marks" id="marks"></div>
+  <div class="page" id="page"></div>
+</div>
+<script>
+// D1..D8 bookmarks; only D1 has content so far
+const PAGES=[{id:'D1',name:'Resources'},{id:'D2',name:'Buildings'},{id:'D3'},{id:'D4'},{id:'D5'},{id:'D6'},{id:'D7'},{id:'D8'}];
+// raw resources are unique; a processed node is a class: its recipes (concrete variants) all give the same thing
+const RES=[
+ {id:'fish',  n:'Fish',  t:1,c:'#4f9bd9',have:0,at:'Fisher Hut'},
+ {id:'meat',  n:'Meat',  t:1,c:'#c4585a',have:0,at:'Hunter Hut'},
+ {id:'wood',  n:'Wood',  t:1,c:'#8a5a2b',have:1,at:'Woodcutter Camp'},
+ {id:'stone', n:'Stone', t:1,c:'#9aa0b4',have:1,at:'Stone Camp'},
+ {id:'salt',  n:'Salt',  t:2,c:'#e6e9f5',have:0,at:'Salt Pan'},
+ {id:'cooked',n:'Cooked Food',t:2,c:'#d9904f',have:0,recipes:[
+   {n:'Smoked Fish',in:['fish','wood'],at:'Smokehouse'},
+   {n:'Grilled Meat',in:['meat','wood'],at:'Grill'}]},
+ {id:'planks',n:'Planks',t:2,c:'#c98a4b',have:1,recipes:[{n:'Planks',in:['wood'],at:'Sawmill'}]},
+ {id:'bricks',n:'Bricks',t:2,c:'#b5523b',have:0,recipes:[{n:'Bricks',in:['stone'],at:'Brickworks'}]},
+ {id:'prepared',n:'Prepared Food',t:3,c:'#d86f6f',have:0,recipes:[{n:'Salted Rations',in:['cooked','salt'],at:'Kitchen'}]},
+ {id:'refined',n:'Refined Planks',t:3,c:'#e8c27a',have:0,recipes:[{n:'Refined Planks',in:['planks'],at:'Carpentry'}]},
+ {id:'tools', n:'Tools',t:3,c:'#7ea6c9',have:0,recipes:[{n:'Tools',in:['planks','bricks'],at:'Workshop'}]},
+ {id:'frame', n:'Frames',t:4,c:'#f2c14e',have:0,recipes:[{n:'Frames',in:['refined','tools'],at:'Foundry'}]}
+];
+RES.forEach(r=>{if(r.recipes)r.from=[...new Set(r.recipes.flatMap(x=>x.in))]});
+// buildings are derived from the resource data (+ the ones that produce nothing)
+const BLD={};
+const bget=n=>BLD[n]||(BLD[n]={n,out:[],note:''});
+RES.forEach(r=>{
+  if(r.recipes) r.recipes.forEach(x=>bget(x.at).out.push({res:r.id,name:x.n,in:x.in}));
+  else bget(r.at).out.push({res:r.id,name:r.n,in:[]});
+});
+bget('Storage').note='Stores all resources and receives deliveries.';
+bget('House').note='Sleeping place for 3 workers, caps the population.';
+const BLIST=Object.values(BLD).sort((a,b)=>a.n.localeCompare(b.n));
+const rn=id=>RES.find(x=>x.id===id).n;
+const prod=id=>BLIST.filter(b=>b.out.some(o=>o.res===id));
+let selB=BLIST[0].n;
+const TIERS=4;
+let sel=null, cur='D1';
+
+function renderMarks(){
+  document.getElementById('marks').innerHTML=PAGES.map(p=>
+   `<button class="mark ${p.id===cur?'on':''}" data-id="${p.id}">${p.id}<small>${p.name||'-'}</small></button>`).join('');
+  document.querySelectorAll('.mark').forEach(b=>b.onclick=()=>{cur=b.dataset.id;render()});
+}
+function renderChart(){
+  let h=`<h2>Resources</h2><p class="sub">Each column is a tier. Lines show what a resource is made from.</p><div class="chart" id="chart">`;
+  for(let t=1;t<=TIERS;t++)
+    h+=`<div class="tier"><b>TIER ${t}</b>`+RES.filter(r=>r.t===t).map(r=>
+      `<div class="node ${r.have?'ok':'lock'}" data-id="${r.id}"><i style="background:${r.c}"></i>${r.n}</div>`).join('')+`</div>`;
+  h+=`<svg id="wires"></svg></div><div class="info" id="info">Click a resource.</div>
+  <div class="legend">Green frame = unlocked, dashed = still locked.</div>`;
+  document.getElementById('page').innerHTML=h;
+  document.querySelectorAll('.node').forEach(n=>n.onclick=()=>{sel=sel===n.dataset.id?null:n.dataset.id;draw()});
+  draw();
+}
+function draw(){
+  const chart=document.getElementById('chart'); if(!chart) return;
+  const cb=chart.getBoundingClientRect(), svg=document.getElementById('wires');
+  const pos={};
+  chart.querySelectorAll('.node').forEach(n=>{const r=n.getBoundingClientRect();
+    pos[n.dataset.id]={l:r.left-cb.left,r:r.right-cb.left,y:r.top+r.height/2-cb.top};
+    n.classList.toggle('sel',n.dataset.id===sel)});
+  const up=id=>{const r=RES.find(x=>x.id===id);return [id,...(r.from||[]).flatMap(up)]};
+  const down=id=>[id,...RES.filter(r=>(r.from||[]).includes(id)).flatMap(r=>down(r.id))];
+  const chain=sel?new Set([...up(sel),...down(sel)]):new Set();
+  let p='';
+  RES.forEach(r=>(r.from||[]).forEach(f=>{
+    const a=pos[f],b=pos[r.id],m=(b.l-a.r)/2,hi=chain.has(f)&&chain.has(r.id);
+    p+=`<path class="${hi?'hi':''}" d="M${a.r},${a.y} C${a.r+m},${a.y} ${b.l-m},${b.y} ${b.l},${b.y}"/>`}));
+  svg.innerHTML=p;
+  const info=document.getElementById('info'), r=RES.find(x=>x.id===sel);
+  const nm=rn;
+  info.innerHTML=r?`<b>${r.n}</b> (Tier ${r.t})<br>`+
+    (r.recipes?(r.recipes.length>1?`General class. Variants (all equivalent):<br>`:'Recipe:<br>')+
+      r.recipes.map(x=>`&bull; ${x.n}: ${x.in.map(nm).join(' + ')} &rarr; ${x.at}`).join('<br>')
+      :`Raw resource (unique) &middot; ${r.at}`)+
+    `<br>${r.have?'Unlocked':'Locked'}<br>Made in: `+prod(r.id).map(b=>`<button class="chip" data-b="${b.n}">${b.n}</button>`).join(''):'Click a resource.';
+}
+function renderBuildings(){
+  const b=BLD[selB];
+  const list=BLIST.map(x=>`<button class="bi ${x.n===selB?'sel':''}" data-b="${x.n}">${x.n}<small>${x.out.length?'produces '+[...new Set(x.out.map(o=>rn(o.res)))].join(', '):'Infrastructure'}</small></button>`).join('');
+  const out=b.out.map(o=>`<div class="rec">${o.name}: ${o.in.length?o.in.map(i=>`<button class="chip res" data-r="${i}">${rn(i)}</button>`).join(' + '):'<span style="color:var(--dim)">no inputs</span>'} &rarr; <button class="chip res" data-r="${o.res}">${rn(o.res)}</button></div>`).join('');
+  document.getElementById('page').innerHTML=`<h2>Buildings</h2><p class="sub">All buildings. Pick one to inspect it.</p>
+   <div class="bk"><div class="blist">${list}</div><div class="bview"><div class="pic">Sprite</div><h3>${b.n}</h3>${b.note?`<div>${b.note}</div>`:''}
+   ${b.out.length?`<h4>PRODUCTION</h4>${out}`:''}</div></div>`;
+}
+document.addEventListener('click',e=>{
+  const c=e.target.closest('[data-b],[data-r]'); if(!c||c.classList.contains('node')) return;
+  if(c.dataset.b){selB=c.dataset.b;cur='D2';render()}
+  else if(c.dataset.r){sel=c.dataset.r;cur='D1';render()}
+});
+function render(){
+  renderMarks();
+  if(cur==='D1') renderChart();
+  else if(cur==='D2') renderBuildings();
+  else document.getElementById('page').innerHTML=`<h2>${cur}</h2><div class="empty">No function yet.</div>`;
+}
+addEventListener('resize',draw);
+render();
+</script>
+</body>
+</html>

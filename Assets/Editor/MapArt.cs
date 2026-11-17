@@ -128,6 +128,274 @@ public static class MapArt
         return p.ToTex();
     }
 
+    /// <summary>Build menu layer icons (28x28): materials, food, water, power.</summary>
+    public static void WriteCategoryIcons()
+    {
+        ArtGenerator.WriteSprite("cat_materials", CatMaterials(), 16);
+        ArtGenerator.WriteSprite("cat_food", CatFood(), 16);
+        ArtGenerator.WriteSprite("cat_water", CatWater(), 16);
+        ArtGenerator.WriteSprite("cat_power", CatPower(), 16);
+    }
+
+    // ---- shared helpers for the category icons: one light source (top-left), same shading depth on every icon
+    private static bool[] MaskOf(Px p)
+    {
+        var m = new bool[p.w * p.h];
+        for (int i = 0; i < m.Length; i++) m[i] = p.a[i].a > 200;
+        return m;
+    }
+
+    private static bool M(bool[] m, int w, int h, int x, int y) { return x >= 0 && y >= 0 && x < w && y < h && m[y * w + x]; }
+
+    /// <summary>Highlight (1 px) on the top-left rim, shadow (2 px) on the bottom-right rim, both hugging the shape.</summary>
+    private static void Shade(Px p, bool[] mask, Color32 shadow, Color32 light)
+    {
+        for (int y = 0; y < p.h; y++) for (int x = 0; x < p.w; x++)
+        {
+            if (!M(mask, p.w, p.h, x, y)) continue;
+            if (!M(mask, p.w, p.h, x + 2, y - 2) || !M(mask, p.w, p.h, x + 1, y - 1)) p.Set(x, y, shadow);
+            else if (!M(mask, p.w, p.h, x - 1, y + 1) || !M(mask, p.w, p.h, x, y + 1) && !M(mask, p.w, p.h, x - 1, y)) p.Set(x, y, light);
+        }
+    }
+
+    /// <summary>Removes pixels that stick out as single dots (fewer than 2 solid 4-neighbours).</summary>
+    private static void Trim(Px p)
+    {
+        for (int pass = 0; pass < 2; pass++)
+        {
+            var m = MaskOf(p);
+            for (int y = 0; y < p.h; y++) for (int x = 0; x < p.w; x++)
+            {
+                if (!m[y * p.w + x]) continue;
+                int n = (M(m, p.w, p.h, x + 1, y) ? 1 : 0) + (M(m, p.w, p.h, x - 1, y) ? 1 : 0) + (M(m, p.w, p.h, x, y + 1) ? 1 : 0) + (M(m, p.w, p.h, x, y - 1) ? 1 : 0);
+                if (n < 2) p.Set(x, y, new Color32(0, 0, 0, 0));
+            }
+        }
+    }
+
+    private static Texture2D CatMaterials()
+    {
+        // three equal true circles (12 px), bottom two first, top log on top with its own ink ring: a clean stack
+        var p = new Px(28, 28);
+        Color32 bark = new Color32(200, 120, 80, 255), barkDark = new Color32(140, 74, 74, 255), barkLight = new Color32(236, 170, 120, 255);
+        Color32 face = new Color32(250, 206, 140, 255), core = new Color32(214, 140, 92, 255);
+        int[][] logs = { new[] { 8, 7 }, new[] { 20, 7 }, new[] { 14, 18 } };
+        foreach (var l in logs)
+        {
+            p.Disc(l[0], l[1], 6.9f, Ink);                       // own outline, drawn before the next log overlaps it
+            var one = new Px(28, 28);
+            one.Disc(l[0], l[1], 5.9f, bark);
+            var mask = MaskOf(one);
+            Shade(one, mask, barkDark, barkLight);
+            for (int i = 0; i < one.a.Length; i++) if (one.a[i].a > 0) p.a[i] = one.a[i];
+            p.Disc(l[0], l[1], 3.9f, face);                      // end face
+            p.Disc(l[0], l[1], 1.5f, core);                      // heart
+        }
+        p.Outline(Ink);
+        return p.ToTex();
+    }
+
+    private static Texture2D CatFood()
+    {
+        // slim, tapered fish: pointed snout, forked tail, swept-back dorsal fin, eye, light belly
+        var p = new Px(28, 28);
+        Color32 body = new Color32(60, 190, 240, 255), bodyDark = new Color32(28, 130, 210, 255), bodyLight = new Color32(190, 244, 255, 255), belly = new Color32(160, 232, 252, 255);
+        Color32 fin = new Color32(255, 160, 70, 255), finDark = new Color32(220, 100, 50, 255), finLight = new Color32(255, 214, 140, 255);
+
+        var fins = new Px(28, 28);
+        fins.Poly(new[] { new Vector2(19.5f, 14.5f), new Vector2(26.5f, 22f), new Vector2(24.5f, 14f), new Vector2(26.5f, 6f), new Vector2(19.5f, 13f) }, fin);   // forked tail
+        fins.Poly(new[] { new Vector2(8.5f, 17.5f), new Vector2(10.5f, 24f), new Vector2(20f, 21f), new Vector2(15f, 16.5f) }, fin);                              // dorsal fin, swept back
+        Shade(fins, MaskOf(fins), finDark, finLight);
+
+        var bodyPx = new Px(28, 28);
+        bodyPx.Poly(new[] { new Vector2(1f, 13.5f), new Vector2(5f, 17.5f), new Vector2(10f, 19f), new Vector2(15f, 18f), new Vector2(21f, 14.5f), new Vector2(21f, 13.2f), new Vector2(15f, 9.5f), new Vector2(10f, 8.5f), new Vector2(5f, 9.8f) }, body);
+        Shade(bodyPx, MaskOf(bodyPx), bodyDark, bodyLight);
+        for (int y = 10; y <= 12; y++) for (int x = 5; x <= 16; x++)
+        {
+            var c = bodyPx.a[y * 28 + x];
+            if (c.r == body.r && c.g == body.g && c.b == body.b) bodyPx.Set(x, y, belly);                       // belly stripe
+        }
+
+        for (int i = 0; i < p.a.Length; i++) { if (fins.a[i].a > 0) p.a[i] = fins.a[i]; if (bodyPx.a[i].a > 0) p.a[i] = bodyPx.a[i]; }
+        p.Rect(4, 14, 2, 2, Color.white); p.Set(4, 14, Ink);                                                      // eye
+        Trim(p);
+        p.Outline(Ink);
+        return p.ToTex();
+    }
+
+    private static Texture2D CatWater()
+    {
+        // a real drop: symmetric round bulb, tip with slightly concave sides
+        var p = new Px(28, 28);
+        Color32 w = new Color32(60, 190, 240, 255), wd = new Color32(28, 130, 210, 255), wl = new Color32(190, 244, 255, 255);
+        const float cx = 14f, cy = 9.5f, r = 8f;
+        for (int y = 0; y < 28; y++) for (int x = 0; x < 28; x++)
+        {
+            float dx = x + 0.5f - cx, dy = y + 0.5f - cy;
+            bool inBulb = dx * dx + dy * dy <= r * r;
+            bool inTip = false;
+            if (y + 0.5f > cy + 4f && y + 0.5f <= 26.5f)
+            {
+                float t = (y + 0.5f - (cy + 4f)) / (26.5f - (cy + 4f));            // 0 at the bulb, 1 at the tip
+                float half = 6.9f * Mathf.Pow(1f - t, 1.7f);                          // concave sides
+                inTip = Mathf.Abs(dx) <= half;
+            }
+            if (inBulb || inTip) p.Set(x, y, w);
+        }
+        var mask = MaskOf(p);
+        Shade(p, mask, wd, wl);
+        p.Rect(9, 9, 2, 4, wl);                                                       // glint
+        Trim(p);
+        p.Outline(Ink);
+        return p.ToTex();
+    }
+
+    private static Texture2D CatPower()
+    {
+        // bolt with constant edge slopes (1:2, 1:1, 1:3) and a bold, closed point
+        var p = new Px(28, 28);
+        Color32 y1 = new Color32(255, 226, 70, 255), y2 = new Color32(255, 160, 40, 255), y3 = new Color32(255, 248, 170, 255);
+        p.Poly(new[] { new Vector2(13, 27), new Vector2(22, 27), new Vector2(16, 15), new Vector2(23, 15), new Vector2(9, 1), new Vector2(13, 13), new Vector2(6, 13) }, y1);
+        var mask = MaskOf(p);
+        Shade(p, mask, y2, y3);
+        Trim(p);
+        p.Outline(Ink);
+        return p.ToTex();
+    }
+
+    /// <summary>Fisher hut (40x32) and the fish icon (12x12).</summary>
+    public static void WriteFisher()
+    {
+        ArtGenerator.WriteSprite("hut_fisher", HutTex(), 16);
+        ArtGenerator.WriteSprite("icon_fish", FishIcon(), 16);
+    }
+
+    private static Texture2D HutTex()
+    {
+        var p = new Px(40, 32);
+        Color32 wood = new Color32(214, 150, 96, 255), woodDark = new Color32(160, 92, 84, 255), woodLight = new Color32(246, 196, 132, 255);
+        Color32 roof = new Color32(46, 190, 214, 255), roofDark = new Color32(30, 122, 178, 255), roofLight = new Color32(150, 240, 246, 255);
+        // walls
+        p.Rect(6, 3, 28, 13, wood);
+        p.Rect(28, 3, 6, 13, woodDark);
+        for (int x = 11; x < 28; x += 5) p.Rect(x, 4, 1, 11, Mix(wood, woodDark, 0.55f));
+        p.Rect(6, 14, 28, 2, woodLight);
+        // door
+        p.Rect(16, 3, 7, 10, new Color32(70, 44, 80, 255));
+        p.Rect(16, 12, 7, 1, new Color32(110, 70, 110, 255));
+        p.Set(21, 7, new Color32(255, 214, 80, 255));
+        // roof (triangle with eaves)
+        p.Poly(new[] { new Vector2(2, 15), new Vector2(20, 31), new Vector2(38, 15) }, roof);
+        for (int y = 15; y < 32; y++) for (int x = 0; x < 40; x++)
+        {
+            if (!p.Solid(x, y)) continue;
+            var c = p.a[y * 40 + x];
+            if (!(c.r == roof.r && c.g == roof.g && c.b == roof.b)) continue;
+            if (x > 20 + (31 - y) * 0.0f + 1) p.Set(x, y, roofDark);                  // right half in shade
+            else if (x + y < 38) p.Set(x, y, roofLight);                              // left edge catches the light
+            if ((y % 4) == 0 && x > 6 && x < 34) p.Set(x, y, Mix(p.a[y * 40 + x], roofDark, 0.5f));   // shingle rows
+        }
+        // fish sign + buoy
+        p.Ellipse(28f, 9.5f, 3.2f, 2.0f, new Color32(255, 150, 60, 255));
+        p.Poly(new[] { new Vector2(30.5f, 9.5f), new Vector2(33.5f, 12), new Vector2(33.5f, 7) }, new Color32(255, 150, 60, 255));
+        p.Set(26, 10, Ink);
+        p.Disc(10.5f, 7f, 2.4f, new Color32(255, 96, 110, 255));
+        p.Rect(9, 7, 3, 1, new Color32(255, 250, 240, 255));
+        p.Outline(Ink);
+        p.Ellipse(20, 2f, 17f, 1.8f, new Color32(Ink.r, Ink.g, Ink.b, 70), true);
+        return p.ToTex();
+    }
+
+    /// <summary>Worker face icon (8x7): the head cut out of the miner's first frame (columns 12-19, rows 18-24 from the top).</summary>
+    public static void WriteWorkerIcon()
+    {
+        const int x0 = 12, top = 18, w = 8, h = 7;
+        var src = new Texture2D(2, 2);
+        src.LoadImage(System.IO.File.ReadAllBytes("Assets/Textures/Original/Outline/MiniMiner.png"));
+        var all = src.GetPixels32();
+        int y0 = src.height - top - h, sw = src.width;
+        var px = new Color32[w * h];                                // bottom row first
+        for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) px[y * w + x] = all[(y0 + y) * sw + x0 + x];
+        Object.DestroyImmediate(src);
+        Color32 ink = px[(h - 1 - 3) * w];                          // outline colour: left edge, 4th row from the top
+        for (int y = 0; y < h; y++) if (px[y * w + w - 1].a > 0) px[y * w + w - 1] = ink;   // the pickaxe pokes into the right edge
+        var t = ArtGenerator.NewTex(w, h);
+        t.SetPixels32(px);
+        ArtGenerator.WriteSprite("icon_worker", t, 16);
+    }
+
+    /// <summary>House (18x17): one tile, wooden walls, red roof, chimney.</summary>
+    public static void WriteHouse()
+    {
+        var p = new Px(18, 17);
+        Color32 wall = new Color32(214, 150, 96, 255), wallDark = new Color32(160, 92, 84, 255);
+        Color32 roof = new Color32(214, 84, 72, 255), roofDark = new Color32(160, 56, 70, 255), roofLight = new Color32(250, 138, 110, 255);
+        p.Rect(3, 1, 12, 7, wall);
+        p.Rect(11, 1, 4, 7, wallDark);
+        p.Rect(7, 1, 3, 5, new Color32(70, 44, 80, 255));
+        p.Rect(4, 4, 2, 2, new Color32(255, 214, 80, 255));
+        p.Rect(12, 9, 2, 6, new Color32(150, 150, 176, 255));      // chimney (the roof covers its lower part)
+        p.Poly(new[] { new Vector2(1, 7), new Vector2(9, 15), new Vector2(17, 7) }, roof);
+        for (int y = 7; y < 16; y++) for (int x = 0; x < 18; x++)
+        {
+            var c = p.a[y * 18 + x];
+            if (!(c.r == roof.r && c.g == roof.g && c.b == roof.b)) continue;
+            p.Set(x, y, x > 9 ? roofDark : (x + y < 17 ? roofLight : roof));
+        }
+        p.Outline(Ink);
+        ArtGenerator.WriteSprite("house", p.ToTex(), 16);
+    }
+
+    /// <summary>Stone icon (12x11, faceted boulder) and wood icon (14x13, pile of three log ends).</summary>
+    public static void WriteResourceIcons()
+    {
+        ArtGenerator.WriteSprite("icon_stone", StoneIcon(), 16);
+        ArtGenerator.WriteSprite("icon_wood", WoodIcon(), 16);
+    }
+
+    private static Texture2D StoneIcon()
+    {
+        var p = new Px(12, 11);
+        Color32 baseC = new Color32(142, 142, 172, 255), dark = new Color32(96, 94, 130, 255), light = new Color32(206, 206, 230, 255);
+        p.Poly(new[] { new Vector2(2, 1), new Vector2(1, 4), new Vector2(2, 8), new Vector2(5, 10), new Vector2(8, 9), new Vector2(10, 6), new Vector2(10, 2), new Vector2(8, 1) }, baseC);
+        for (int y = 0; y < p.h; y++) for (int x = 0; x < p.w; x++)
+        {
+            if (!p.Solid(x, y)) continue;
+            if (x >= 7 || y <= 2) p.Set(x, y, dark);
+            else if (x <= 4 && y >= 6) p.Set(x, y, light);
+        }
+        p.Set(5, 6, dark); p.Set(6, 5, dark); p.Set(6, 4, dark);
+        p.Outline(Ink);
+        return p.ToTex();
+    }
+
+    private static Texture2D WoodIcon()
+    {
+        var p = new Px(14, 13);
+        Color32 bark = new Color32(122, 74, 42, 255), wood = new Color32(232, 176, 108, 255), ring = new Color32(186, 120, 68, 255);
+        foreach (var c in new[] { new Vector2(4.5f, 3.5f), new Vector2(9.5f, 3.5f), new Vector2(7.5f, 8.5f) })
+        {
+            p.Disc(c.x, c.y, 3.0f, bark);
+            p.Disc(c.x, c.y, 2.2f, wood);
+            p.Disc(c.x, c.y, 1.4f, ring);
+            p.Disc(c.x, c.y, 0.6f, wood);
+        }
+        p.Outline(Ink);
+        return p.ToTex();
+    }
+
+    private static Texture2D FishIcon()
+    {
+        var p = new Px(12, 12);
+        Color32 body = new Color32(60, 190, 240, 255), belly = new Color32(190, 244, 255, 255), fin = new Color32(255, 160, 70, 255);
+        p.Ellipse(5.2f, 6f, 4.4f, 3f, body);
+        p.Poly(new[] { new Vector2(8.5f, 6), new Vector2(11.5f, 9), new Vector2(11.5f, 3) }, fin);
+        p.Rect(2, 4, 6, 1, belly);
+        p.Set(3, 7, Ink);
+        p.Outline(Ink);
+        return p.ToTex();
+    }
+
     /// <summary>Index into TerrainOutliner's tile arrays.</summary>
     public static int EdgeIndex(int edges, int corners) { return (edges << 4) | corners; }
 

@@ -74,6 +74,10 @@ public static class DevCommandRunner
                 SessionState.SetString("dev.call", a.Length > 1 ? a[1] : "");
                 EditorApplication.isPlaying = true;
             }
+            else if (verb == "agent")
+            {
+                AgentHarness.Start(cmd.Substring(5).Trim());
+            }
             else Finish("ERROR unknown command: " + cmd);
         }
         catch (System.Exception e) { Finish("ERROR " + e); }
@@ -133,7 +137,7 @@ public static class DevCommandRunner
         return Path.Combine(dir, name + ".png");
     }
 
-    private static void Finish(string result)
+    public static void Finish(string result)
     {
         var sb = new StringBuilder();
         sb.AppendLine(result);

@@ -43,14 +43,6 @@ public static class ArtGenerator
         {
             "..kkkkk..", ".kwwwwwk.", "kwwwrwwwk", "kwwwrwwwk", "kwwwrwwwk", "kwwwwwwwk", "kwwwrwwwk", ".kwwwwwk.", "..kkkkk..",
         }), 16);
-        WriteSprite("icon_stone", Bitmap(new[]
-        {
-            "..kkkk..", ".khhhak.", "khhaaack", "khaaaack", "kaaaccck", ".kcccck.", "..kkkk..", "........",
-        }), 16);
-        WriteSprite("icon_wood", Bitmap(new[]
-        {
-            "..kkkk..", ".kmmmnk.", "kmkkmnnk", "kmkkmnnk", "kmmmmnnk", ".kmnnnk.", "..kkkk..", "........",
-        }), 16);
         WriteSprite("icon_pop", Bitmap(new[]
         {
             "..kkkk..", ".kyyyyk.", ".kyyyyk.", "..kkkk..", ".kbbbbk.", "kbbbbbbk", "kbbbbbbk", "kkkkkkkk",
@@ -63,6 +55,11 @@ public static class ArtGenerator
         var tileSprites = new List<string>();
         MapArt.WriteGround(tileSprites);
         MapArt.WriteCrates();
+        MapArt.WriteFisher();
+        MapArt.WriteCategoryIcons();
+        MapArt.WriteResourceIcons();
+        MapArt.WriteHouse();
+        MapArt.WriteWorkerIcon();
         WriteTile("GridLine", GridLineTex(), tileSprites);
         WriteTile("Hl_Fill", SolidTex(16), tileSprites);
         WriteTile("Hl_Outline", OutlineTex(), tileSprites);

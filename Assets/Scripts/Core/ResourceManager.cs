@@ -13,9 +13,9 @@ public class ResourceManager : MonoBehaviour
     /// <summary>kind, new amount, delta</summary>
     public event Action<ResourceKind, int, int> Changed;
 
-    private int stone, wood;
-    public int TotalDelivered(ResourceKind k) { return k == ResourceKind.Stone ? deliveredStone : deliveredWood; }
-    private int deliveredStone, deliveredWood;
+    private int stone, wood, fish;
+    public int TotalDelivered(ResourceKind k) { return k == ResourceKind.Stone ? deliveredStone : (k == ResourceKind.Fish ? deliveredFish : deliveredWood); }
+    private int deliveredStone, deliveredWood, deliveredFish;
 
     private void Awake()
     {
@@ -29,13 +29,14 @@ public class ResourceManager : MonoBehaviour
 
     public int Get(ResourceKind k)
     {
-        return k == ResourceKind.Stone ? stone : k == ResourceKind.Wood ? wood : 0;
+        return k == ResourceKind.Stone ? stone : k == ResourceKind.Wood ? wood : k == ResourceKind.Fish ? fish : 0;
     }
 
     public void Add(ResourceKind k, int amount, bool fromWorker = false)
     {
         if (amount == 0 || k == ResourceKind.None) return;
         if (k == ResourceKind.Stone) { stone += amount; if (fromWorker) deliveredStone += amount; }
+        else if (k == ResourceKind.Fish) { fish += amount; if (fromWorker) deliveredFish += amount; }
         else { wood += amount; if (fromWorker) deliveredWood += amount; }
         if (Changed != null) Changed(k, Get(k), amount);
     }
@@ -61,17 +62,19 @@ public class ResourceManager : MonoBehaviour
     {
         s.wood = wood; s.stone = stone;
         s.deliveredWood = deliveredWood; s.deliveredStone = deliveredStone;
+        s.fish = fish; s.deliveredFish = deliveredFish;
     }
 
     public void ReadSave(LevelSave s)
     {
-        deliveredWood = s.deliveredWood; deliveredStone = s.deliveredStone;
-        int dw = s.wood - wood, ds = s.stone - stone;
-        wood = s.wood; stone = s.stone;
+        deliveredWood = s.deliveredWood; deliveredStone = s.deliveredStone; deliveredFish = s.deliveredFish;
+        int dw = s.wood - wood, ds = s.stone - stone, df = s.fish - fish;
+        wood = s.wood; stone = s.stone; fish = s.fish;
         if (Changed != null)
         {
             Changed(ResourceKind.Wood, wood, dw);
             Changed(ResourceKind.Stone, stone, ds);
+            Changed(ResourceKind.Fish, fish, df);
         }
     }
 }

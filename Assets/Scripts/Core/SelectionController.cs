@@ -70,15 +70,25 @@ public class SelectionController : MonoBehaviour
             if (hw != null) HoverText = hw.workerName + " - " + hw.JobTitle;
             else if (hc != null) HoverText = hc.Opened ? "Crate (opened)" : "Pearl crate - needs " + hc.data.amount + " " + Products.TagName(hc.Tag).ToLower();
             else if (hb != null) HoverText = hb.displayName;
-            else if (hn != null) HoverText = ResourceInfo.Name(hn.resource) + " deposit  " + hn.yield + "/" + hn.maxYield;
+            else if (hn != null) HoverText = hn.resource == ResourceKind.Fish ? "Fishing spot" : ResourceInfo.Name(hn.resource) + " deposit  " + hn.yield + "/" + hn.maxYield;
 
             if (Input.GetMouseButtonDown(0)) Select(hw, hb, hn, hc);
         }
 
-        if ((HasSelection || SelectedCrate != null) && (Input.GetMouseButtonDown(1) || Input.GetKeyDown(KeyCode.Escape)) && !placing) Clear();
+        if ((HasSelection || SelectedCrate != null) && ((Input.GetMouseButtonUp(1) && !CameraMotor.RightDragged) || Input.GetKeyDown(KeyCode.Escape)) && !placing) Clear();
         if (!DebugConsole.IsOpen && Input.GetKeyDown(KeyCode.Delete) && SelectedBuilding != null && !placing) DemolishSelected();
 
         DrawSelection(placing);
+    }
+
+    /// <summary>Same as left-clicking a cell with the mouse (harness / tests): selects the worker, building, deposit or crate there.</summary>
+    public void ClickCell(Vector2Int cell)
+    {
+        var grid = GridManager.instance;
+        if (grid == null) return;
+        Worker w; Building b; Cell n; Crate cr;
+        Pick(grid.CellToWorld(cell), out w, out b, out n, out cr);
+        Select(w, b, n, cr);
     }
 
     /// <summary>Selects a crate from code (tests, debug commands).</summary>

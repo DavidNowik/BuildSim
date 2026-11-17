@@ -54,6 +54,18 @@ public class PlacementController : MonoBehaviour
         if (HUD.Instance != null) HUD.Instance.Toast("Left click: place    Right click / Esc: cancel    Shift: keep placing", ToastKind.Info, 3.5f);
     }
 
+    /// <summary>Same as left-clicking with the cursor over this cell while placing (harness / tests). Returns false with the reason when it was denied.</summary>
+    public bool ClickCell(Vector2Int cell, out string why)
+    {
+        why = "not placing";
+        if (ghost == null) return false;
+        Vector2Int anchor = ghost.AnchorForCell(cell);
+        if (!Validate(anchor, out why)) { Deny(why); return false; }
+        ghost.gameObject.SetActive(true);   // a real cursor hover would have shown the ghost already
+        Place(anchor);
+        return true;
+    }
+
     public void Cancel(bool sound = true)
     {
         if (ghost != null) Destroy(ghost.gameObject);
@@ -71,7 +83,7 @@ public class PlacementController : MonoBehaviour
         if (cam == null) cam = Camera.main;
         var grid = GridManager.instance;
 
-        if (Input.GetKeyDown(KeyCode.Escape) || Input.GetMouseButtonDown(1))
+        if (Input.GetKeyDown(KeyCode.Escape) || (Input.GetMouseButtonUp(1) && !CameraMotor.RightDragged))
         {
             Cancel();
             return;

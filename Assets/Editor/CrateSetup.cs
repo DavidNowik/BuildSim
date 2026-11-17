@@ -93,7 +93,7 @@ public static class CrateSetup
     }
 
     // ---------------------------------------------------------------- panel
-    private static void BuildPanel(HUD hud)
+    public static void BuildPanel(HUD hud)
     {
         var canvas = hud.transform;
         foreach (string n in new[] { "CratePanel", "CratePanelController" })
