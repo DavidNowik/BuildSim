@@ -12,6 +12,7 @@ public enum ProductTag
 {
     None = 0,
     BuildingMaterial = 1,
+    Food = 2,
 }
 
 public static class Products
@@ -22,6 +23,7 @@ public static class Products
         {
             case ResourceKind.Stone: return ProductTag.BuildingMaterial;
             case ResourceKind.Wood: return ProductTag.BuildingMaterial;
+            case ResourceKind.Fish: return ProductTag.Food;
             default: return ProductTag.None;
         }
     }
@@ -39,6 +41,6 @@ public static class Products
 
     public static string TagName(ProductTag tag)
     {
-        switch (tag) { case ProductTag.BuildingMaterial: return "Building material"; default: return "Anything"; }
+        switch (tag) { case ProductTag.BuildingMaterial: return "Building material"; case ProductTag.Food: return "Food"; default: return "Anything"; }
     }
 }

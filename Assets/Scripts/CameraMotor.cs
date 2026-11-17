@@ -148,21 +148,26 @@ public class CameraMotor : MonoBehaviour
         }
     }
 
+    /// <summary>True when the last right-click moved the camera (so it must not also cancel / deselect).</summary>
+    public static bool RightDragged;
+
     private void HandleDrag()
     {
-        if (Input.GetMouseButtonDown(2) && !PointerOverUI())
+        if (Input.GetMouseButtonDown(1) && !PointerOverUI())
         {
             dragging = true;
+            RightDragged = false;
             zoomFocusActive = false;
             dragOrigin = cam.ScreenToWorldPoint(Input.mousePosition);
         }
-        if (Input.GetMouseButtonUp(2)) dragging = false;
+        if (Input.GetMouseButtonUp(1)) dragging = false;
 
-        if (dragging && Input.GetMouseButton(2))
+        if (dragging && Input.GetMouseButton(1))
         {
             Vector3 current = cam.ScreenToWorldPoint(Input.mousePosition);
             Vector3 diff = dragOrigin - current;
             diff.z = 0f;
+            if (diff.sqrMagnitude > 0.01f) RightDragged = true;
             targetPos += diff;
             pos = targetPos;
             // the camera moved, so re-sample the world point under the cursor
@@ -216,6 +221,13 @@ public class CameraMotor : MonoBehaviour
         targetPos.y = Mathf.Clamp(targetPos.y, minY, maxY);
         pos.x = Mathf.Clamp(pos.x, minX, maxX);
         pos.y = Mathf.Clamp(pos.y, minY, maxY);
+    }
+
+    /// <summary>Centres the camera on a world point immediately (tests, harness).</summary>
+    public void FocusOn(Vector2 world)
+    {
+        targetPos = pos = new Vector3(world.x, world.y, camZ);
+        transform.position = pos;
     }
 
     /// <summary>Jumps to an integer zoom level (1 = whole map ... 6 = closest). Used by tests and debug commands.</summary>

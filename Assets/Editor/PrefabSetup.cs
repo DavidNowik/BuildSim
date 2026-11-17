@@ -40,13 +40,17 @@ public static class PrefabSetup
             if (worker == null) { Debug.LogError("PrefabSetup: " + WorkerPrefab + " has no Worker component"); return; }
 
             GameObjectUtility.RemoveMonoBehavioursWithMissingScript(root);
-            Remove(root.transform, "Shadow"); Remove(root.transform, "CarryIcon");
+            Remove(root.transform, "CarryIcon");   // (the worker Shadow is kept so a hand-set offset survives)
             Remove(root.transform, "StatusBubble"); Remove(root.transform, "SelectRing");
 
-            var shadow = NewRenderer(root.transform, "Shadow", ArtGenerator.LoadSprite("shadow"), Layers.Workers, 0, true);
-            shadow.transform.localPosition = new Vector3(0f, -0.4f, 0f);
-            shadow.transform.localScale = new Vector3(0.45f, 0.5f, 1f);
-            shadow.color = new Color(0f, 0f, 0f, 0.3f);
+            if (root.transform.Find("Shadow") == null)
+            {
+                var newShadow = NewRenderer(root.transform, "Shadow", ArtGenerator.LoadSprite("shadow"), Layers.Workers, 0, true);
+                newShadow.transform.localPosition = new Vector3(0f, 0.025f, 0f);
+                newShadow.transform.localScale = new Vector3(0.45f, 0.5f, 1f);
+                newShadow.color = new Color(0f, 0f, 0f, 0.3f);
+            }
+            var shadow = root.transform.Find("Shadow").GetComponent<SpriteRenderer>();
 
             var carry = NewRenderer(root.transform, "CarryIcon", ArtGenerator.LoadSprite("icon_stone"), Layers.Workers, 0, false);
             carry.transform.localPosition = new Vector3(0.32f, -0.12f, 0f);
@@ -78,7 +82,7 @@ public static class PrefabSetup
     }
 
     // ---------------------------------------------------------------- buildings
-    private static void SetupBuilding(string path)
+    public static void SetupBuilding(string path)
     {
         var root = PrefabUtility.LoadPrefabContents(path);
         try

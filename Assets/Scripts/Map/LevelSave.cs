@@ -8,6 +8,8 @@ public class BuildingSave
 {
     public string prefab;          // Building.displayName of the catalog prefab
     public Vector2Int anchor;
+    public int wanted;             // workers the player asked for
+    public int priority = 3;       // 1..5
 }
 
 [Serializable]
@@ -33,8 +35,8 @@ public class LevelSave
 
     public MapData map;
 
-    public int wood, stone;
-    public int deliveredWood, deliveredStone;
+    public int wood, stone, fish;
+    public int deliveredWood, deliveredStone, deliveredFish;
     public int day;
     public float timeOfDay;
     public int goalIndex;

@@ -185,7 +185,7 @@ public static class MapGen
     private static void PlaceCrates(MapData d, System.Random rng)
     {
         var reach = Reachable(d);
-        int count = Mathf.Max(2, Mathf.RoundToInt(d.width * d.height / 330f));
+        int count = Mathf.Clamp(d.tier + 1, 1, 12);   // one crate per tier level (the first map, tier 0, has one)
         for (int n = 0; n < count; n++)
         {
             for (int tries = 0; tries < 80; tries++)

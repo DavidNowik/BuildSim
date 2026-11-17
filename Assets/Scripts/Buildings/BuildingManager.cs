@@ -23,6 +23,67 @@ public class BuildingManager : MonoBehaviour
 
     private void OnDestroy() { if (instance == this) instance = null; }
 
+    // ------------------------------------------------------------ work assignment
+    private float rebalanceTimer;
+    private readonly List<Building> jobs = new List<Building>();
+
+    private void Update()
+    {
+        rebalanceTimer -= Time.deltaTime;
+        if (rebalanceTimer > 0f) return;
+        rebalanceTimer = 0.25f;
+        Rebalance();
+    }
+
+    public int Crew(Building b)
+    {
+        int n = 0;
+        foreach (var w in Worker.All) if (w.Job == b) n++;
+        return n;
+    }
+
+    /// <summary>
+    /// Hands the pooled workers out: buildings with the highest priority (5) are served first, each up to the number the player asked for.
+    /// Workers of a building that now gets fewer are released and picked up by whoever is still short.
+    /// </summary>
+    public void Rebalance()
+    {
+        foreach (var w in Worker.All) if (!w.Employed) w.Unassign();
+
+        // beds: every worker without a home takes the nearest house with a free place
+        foreach (var w in Worker.All)
+        {
+            if (w.home != null && w.home.IsPlaced) continue;
+            var house = GetNearestWithRoom(BuildingRole.House, w.transform.position);
+            if (house != null) w.TakeHome(house);
+        }
+
+        jobs.Clear();
+        foreach (var b in buildings) if (b.IsPlaced && b.IsWorkplace) jobs.Add(b);
+        // equal priority: the building that already has workers keeps them
+        jobs.Sort((a, b) =>
+        {
+            if (a.priority != b.priority) return b.priority.CompareTo(a.priority);
+            int ca = Crew(a), cb = Crew(b);
+            return ca != cb ? cb.CompareTo(ca) : a.GetInstanceID().CompareTo(b.GetInstanceID());
+        });
+
+        int free = Worker.All.Count;
+        var target = new int[jobs.Count];
+        for (int i = 0; i < jobs.Count; i++) { target[i] = Mathf.Min(jobs[i].wanted, free); free -= target[i]; }
+
+        for (int i = 0; i < jobs.Count; i++)
+        {
+            int excess = Crew(jobs[i]) - target[i];
+            foreach (var w in Worker.All.ToArray()) if (excess > 0 && w.Job == jobs[i]) { w.Unassign(); excess--; }
+        }
+        for (int i = 0; i < jobs.Count; i++)
+        {
+            int missing = target[i] - Crew(jobs[i]);
+            foreach (var w in Worker.All) if (missing > 0 && !w.Employed) { w.Assign(jobs[i]); missing--; }
+        }
+    }
+
     public void RegisterBuilding(Building building)
     {
         if (!buildings.Contains(building)) buildings.Add(building);
@@ -64,7 +125,7 @@ public class BuildingManager : MonoBehaviour
     public int TotalCapacity()
     {
         int n = 0;
-        for (int i = 0; i < buildings.Count; i++) n += buildings[i].maxWorkers;
+        for (int i = 0; i < buildings.Count; i++) if (buildings[i].role == BuildingRole.House && buildings[i].IsPlaced) n += buildings[i].maxWorkers;
         return n;
     }
 

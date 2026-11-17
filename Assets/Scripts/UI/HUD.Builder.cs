@@ -22,7 +22,7 @@ public partial class HUD
         BuildInspectorPanel();
         BuildTooltipObject();
         BuildHelpText();
-        BuildBar(colony);
+        // (no build bar here any more: buildings live in the build layer tabs of the HUD PoC; recruiting is a debug command)
         BuildTemplates();
         EditorUtility.SetDirty(this);
     }
@@ -105,17 +105,18 @@ public partial class HUD
 
         stoneLabel = MakeCounter(bar, "Stone", stoneSprite, 28, out stoneIcon);
         woodLabel = MakeCounter(bar, "Wood", woodSprite, 176, out woodIcon);
+        fishLabel = MakeCounter(bar, "Fish", fishSprite, 324, out fishIcon);
 
         var pi = NewRect("PopulationIcon", bar);
-        Anchor(pi, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(324, 0), new Vector2(36, 36));
+        Anchor(pi, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(472, 0), new Vector2(36, 36));
         var pimg = AddImage(pi, popSprite, Color.white, false); pimg.preserveAspect = true;
         popText = AddText(bar, "PopulationCount", "0 / 0", 28, TextAnchor.MiddleLeft, TextCol);
-        Anchor(popText.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(370, 0), new Vector2(120, 40));
+        Anchor(popText.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(518, 0), new Vector2(120, 40));
 
         dayText = AddText(bar, "DayLabel", "Day 1", 24, TextAnchor.MiddleLeft, AccentCol);
-        Anchor(dayText.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(520, 8), new Vector2(120, 30));
+        Anchor(dayText.rectTransform, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(668, 8), new Vector2(120, 30));
         var bg = NewRect("DayBarBackground", bar);
-        Anchor(bg, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(520, -14), new Vector2(112, 8));
+        Anchor(bg, new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(0, 0.5f), new Vector2(668, -14), new Vector2(112, 8));
         AddImage(bg, barSprite, new Color(0f, 0f, 0f, 0.5f), true);
         var fill = NewRect("DayBar", bg);
         Anchor(fill, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero);
@@ -193,7 +194,7 @@ public partial class HUD
     {
         var list = new List<BarButton>();
         int buildCount = colony.catalog.Count;
-        int count = buildCount + 2;
+        int count = buildCount + 3;
         const float bw = 156f, bh = 94f, gap = 10f, group = 22f;
         float total = count * bw + (count - 1) * gap + group + 24f;
 
@@ -219,6 +220,8 @@ public partial class HUD
         list.Add(AddBarButton(bar, list.Count, x, bw, bh, null, ResourceKind.Stone, KeyCode.Alpha1 + key, key + 1, head, "Recruit Miner", Colony.RecruitCost(ResourceKind.Stone).ToString()));
         x += bw + gap; key++;
         list.Add(AddBarButton(bar, list.Count, x, bw, bh, null, ResourceKind.Wood, KeyCode.Alpha1 + key, key + 1, head, "Recruit Woodcutter", Colony.RecruitCost(ResourceKind.Wood).ToString()));
+        x += bw + gap; key++;
+        list.Add(AddBarButton(bar, list.Count, x, bw, bh, null, ResourceKind.Fish, KeyCode.Alpha1 + key, key + 1, head, "Recruit Fisher", Colony.RecruitCost(ResourceKind.Fish).ToString()));
 
         barButtons = list.ToArray();
     }

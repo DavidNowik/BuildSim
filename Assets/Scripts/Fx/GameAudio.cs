@@ -1,7 +1,7 @@
 using System.Collections;
 using UnityEngine;
 
-public enum Sfx { StrikeStone, StrikeWood, Place, Deny, Deposit, Click, Hover, Recruit, Chime, Pickup, TideRumble, Thunder, Thump, BellLow, BellHigh }
+public enum Sfx { StrikeStone, StrikeWood, Place, Deny, Deposit, Click, Hover, Recruit, Chime, Pickup, TideRumble, Thunder, Thump, BellLow, BellHigh, Splash }
 
 /// <summary>
 /// Fully procedural audio: synthesised SFX, ambient wind + birds and a soft generative music bed.
@@ -235,6 +235,10 @@ public class GameAudio : MonoBehaviour
             })
         };
 
+        {
+            float lpS = 0f;
+            clips[(int)Sfx.Splash] = new[] { Make("splash", 0.3f, (t, d) => { lpS += (Noise() - lpS) * 0.22f; return 0.55f * lpS * Mathf.Exp(-t * 11f) * Mathf.Clamp01(t * 90f) + 0.12f * Sin(260f - 380f * t, t) * Mathf.Exp(-t * 16f); }) };
+        }
         clips[(int)Sfx.Pickup] = new[] { Make("pickup", 0.06f, (t, d) => 0.25f * Sin(900f + 700f * t, t) * Mathf.Exp(-t * 45f)) };
 
         // ---- tide sounds (overworld): deep rumble, thunder, thump of a land going under, two bells

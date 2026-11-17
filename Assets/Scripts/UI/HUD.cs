@@ -59,13 +59,16 @@ public partial class HUD : MonoBehaviour
     [SerializeField] private Sprite pixelSprite;
     [SerializeField] private Sprite stoneSprite;
     [SerializeField] private Sprite woodSprite;
+    [SerializeField] private Sprite fishSprite;
     [SerializeField] private Sprite popSprite;
 
     [Header("Top bar")]
     [SerializeField] private CounterLabel stoneLabel;
     [SerializeField] private CounterLabel woodLabel;
+    [SerializeField] private CounterLabel fishLabel;
     [SerializeField] private RectTransform stoneIcon;
     [SerializeField] private RectTransform woodIcon;
+    [SerializeField] private RectTransform fishIcon;
     [SerializeField] private Text popText;
     [SerializeField] private Text dayText;
     [SerializeField] private Image dayBar;
@@ -129,11 +132,12 @@ public partial class HUD : MonoBehaviour
         rm.Changed += OnResourceChanged;
         stoneLabel.Set(rm.Get(ResourceKind.Stone), true);
         woodLabel.Set(rm.Get(ResourceKind.Wood), true);
+        if (fishLabel != null) fishLabel.Set(rm.Get(ResourceKind.Fish), true);
     }
 
     private void OnResourceChanged(ResourceKind kind, int amount, int delta)
     {
-        (kind == ResourceKind.Stone ? stoneLabel : woodLabel).Set(amount);
+        LabelFor(kind).Set(amount);
     }
 
     // ------------------------------------------------------------ button targets (wired as persistent listeners)
@@ -267,6 +271,13 @@ public partial class HUD : MonoBehaviour
                 speedImages[i].color = GameClock.Speeds[i] == gc.Speed ? new Color(0.55f, 0.45f, 0.15f, 0.98f) : ButtonCol;
     }
 
+    private CounterLabel LabelFor(ResourceKind kind)
+    {
+        if (kind == ResourceKind.Stone) return stoneLabel;
+        if (kind == ResourceKind.Fish && fishLabel != null) return fishLabel;
+        return woodLabel;
+    }
+
     private void UpdateInspector()
     {
         var sel = SelectionController.Instance;
@@ -310,7 +321,7 @@ public partial class HUD : MonoBehaviour
             else if (b.role == BuildingRole.Storage)
             {
                 var rm = ResourceManager.Instance;
-                body = "Stone: " + rm.Get(ResourceKind.Stone) + "\nWood: " + rm.Get(ResourceKind.Wood) + "\nWorkers deliver here.";
+                body = "Stone: " + rm.Get(ResourceKind.Stone) + "\nWood: " + rm.Get(ResourceKind.Wood) + "\nFish: " + rm.Get(ResourceKind.Fish) + "\nWorkers deliver here.";
             }
             inspBody.text = body;
             demolishLabel.text = "Demolish (Del)   +" + new Cost(Mathf.FloorToInt(b.costWood * 0.5f), Mathf.FloorToInt(b.costStone * 0.5f)).ToString().Replace("Free", "0");
@@ -391,9 +402,9 @@ public partial class HUD : MonoBehaviour
     public void FlyIcon(ResourceKind kind, Vector3 world)
     {
         var cam = Camera.main;
-        if (cam == null || flying >= 12 || flyTemplate == null) return;
-        RectTransform target = kind == ResourceKind.Stone ? stoneIcon : woodIcon;
-        CounterLabel label = kind == ResourceKind.Stone ? stoneLabel : woodLabel;
+        if (cam == null || flying >= 12 || flyTemplate == null || !isActiveAndEnabled) return;   // HUD hidden (PoC shown): no icon to fly
+        RectTransform target = kind == ResourceKind.Stone ? stoneIcon : (kind == ResourceKind.Fish && fishIcon != null ? fishIcon : woodIcon);
+        CounterLabel label = LabelFor(kind);
         StartCoroutine(Fly(kind, cam.WorldToScreenPoint(world), target, label));
     }
 
@@ -404,7 +415,7 @@ public partial class HUD : MonoBehaviour
         rt.name = "FlyIcon";
         rt.gameObject.SetActive(true);
         var img = rt.GetComponent<Image>();
-        img.sprite = kind == ResourceKind.Wood ? woodSprite : stoneSprite;
+        img.sprite = kind == ResourceKind.Wood ? woodSprite : (kind == ResourceKind.Fish && fishSprite != null ? fishSprite : stoneSprite);
         rt.position = from;
 
         float t = 0f, dur = 0.75f;

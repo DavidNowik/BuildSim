@@ -49,6 +49,8 @@ public class GridManager : MonoBehaviour
     [Header("Deposit sizes")]
     public int stoneYield = 100;
     public int woodYield = 50;
+    [Tooltip("Fish at each shore water cell; fishing spots never run out")]
+    public int fishYield = 40;
 
     public bool IsInitialized { get; private set; }
     public Vector3 Origin { get; private set; }
@@ -79,6 +81,7 @@ public class GridManager : MonoBehaviour
 
         ScanGround();
         ScanResources();
+        ScanFishingSpots();
         IsInitialized = true;
     }
 
@@ -133,6 +136,29 @@ public class GridManager : MonoBehaviour
         }
     }
 
+    /// <summary>Every water cell that touches walkable land is a fishing spot (a node a fisher can stand next to).</summary>
+    private void ScanFishingSpots()
+    {
+        int[] dx = { 1, -1, 0, 0 }, dy = { 0, 0, 1, -1 };
+        for (int x = 0; x < width; x++)
+            for (int y = 0; y < height; y++)
+            {
+                Cell c = grid[x, y];
+                if (c.terrain != TerrainKind.Water || c.HasNode) continue;
+                bool shore = false;
+                for (int k = 0; k < 4 && !shore; k++)
+                {
+                    Cell n = GetCell(x + dx[k], y + dy[k]);
+                    if (n != null && n.terrain != TerrainKind.Water && !n.HasNode) shore = true;
+                }
+                if (!shore) continue;
+                c.resource = ResourceKind.Fish;
+                c.yield = fishYield;
+                c.maxYield = fishYield;
+                nodes.Add(c);
+            }
+    }
+
     /// <summary>Restores remaining deposit amounts from a saved map (call after the grid was scanned).</summary>
     public void ApplyYields(MapData saved)
     {
@@ -156,8 +182,8 @@ public class GridManager : MonoBehaviour
                 Cell c = grid[x, y];
                 int i = d.Index(x, y);
                 d.terrain[i] = (byte)c.terrain;
-                d.resource[i] = (byte)c.resource;
-                d.yield[i] = c.yield;
+                d.resource[i] = (byte)(c.resource == ResourceKind.Fish ? ResourceKind.None : c.resource);   // fishing spots come from the water itself
+                d.yield[i] = c.resource == ResourceKind.Fish ? 0 : c.yield;
             }
         return d;
     }
@@ -317,6 +343,7 @@ public class GridManager : MonoBehaviour
     public bool HarvestOne(Cell c)
     {
         if (c == null || !c.HasNode) return true;
+        if (c.resource == ResourceKind.Fish) return false;   // the sea does not run dry
         c.yield--;
         if (c.yield > 0) return false;
 

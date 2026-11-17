@@ -166,6 +166,7 @@ public static class LevelSceneBuilder
         SetRef(hso, "pixelSprite", ArtGenerator.LoadSprite("pixel"));
         SetRef(hso, "stoneSprite", ArtGenerator.LoadSprite("icon_stone"));
         SetRef(hso, "woodSprite", ArtGenerator.LoadSprite("icon_wood"));
+        SetRef(hso, "fishSprite", ArtGenerator.LoadSprite("icon_fish"));
         SetRef(hso, "popSprite", ArtGenerator.LoadSprite("icon_pop"));
         hso.ApplyModifiedPropertiesWithoutUndo();
         hud.BuildUI(colony);

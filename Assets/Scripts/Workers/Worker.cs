@@ -21,7 +21,7 @@ public class Worker : MonoBehaviour
 
     // ---- public read-only state (HUD / selection)
     public string workerName { get; private set; }
-    public string JobTitle { get { return ResourceInfo.JobTitle(gatherKind); } }
+    public string JobTitle { get { return Employed ? ResourceInfo.JobTitle(gatherKind) : "Unassigned"; } }
     public WorkerState State { get; private set; }
     public Building home { get; private set; }
     public int Carry { get; private set; }
@@ -38,7 +38,7 @@ public class Worker : MonoBehaviour
             switch (State)
             {
                 case WorkerState.GoToNode: return "Heading to " + ResourceInfo.Name(gatherKind).ToLower();
-                case WorkerState.Gather: return gatherKind == ResourceKind.Wood ? "Chopping" : "Mining";
+                case WorkerState.Gather: return gatherKind == ResourceKind.Wood ? "Chopping" : (gatherKind == ResourceKind.Fish ? "Fishing" : "Mining");
                 case WorkerState.GoToStorage: return "Delivering";
                 case WorkerState.GoToBed: return "Going to rest";
                 case WorkerState.Sleep: return "Sleeping";
@@ -71,6 +71,7 @@ public class Worker : MonoBehaviour
     public Sprite bubbleAlert;
     public Sprite stoneIcon;
     public Sprite woodIcon;
+    public Sprite fishIcon;
     private Color baseTint = Color.white;
 
     // ---- movement
@@ -107,7 +108,6 @@ public class Worker : MonoBehaviour
         UpdateStats();
 
         visual = transform.childCount > 0 ? transform.GetChild(0) : transform;
-        visual.localPosition = Vector3.zero;
         visualSr = visual.GetComponent<SpriteRenderer>();
         anim = visual.GetComponent<Animator>();
         if (anim != null) anim.SetTrigger("miner");
@@ -150,15 +150,31 @@ public class Worker : MonoBehaviour
         strikesPerUnit = Mathf.Max(1, Mathf.RoundToInt(gatherTime / StrikePeriod));
     }
 
-    /// <summary>Called by the spawner right after instantiating.</summary>
-    public void Configure(ResourceKind kind, Building camp, string niceName = null)
+    // ------------------------------------------------------------ job (set by BuildingManager.Rebalance)
+    private Building job;
+    private bool assigned;
+    public bool Employed { get { return assigned && job != null && job.IsPlaced; } }
+    public Building Job { get { return Employed ? job : null; } }
+
+    public void Assign(Building b)
     {
-        gatherKind = kind;
-        if (!string.IsNullOrEmpty(niceName)) workerName = niceName;
-        if (kind == ResourceKind.Wood) baseTint = new Color(0.78f, 1.0f, 0.74f);
+        if (assigned && job == b) return;
+        job = b; assigned = true;
+        gatherKind = ResourceInfo.KindFor(b.role);
+        if (gatherKind == ResourceKind.Wood) baseTint = new Color(0.78f, 1.0f, 0.74f);
+        else if (gatherKind == ResourceKind.Fish) baseTint = new Color(0.74f, 0.9f, 1f);
         else baseTint = Color.white;
-        if (visualSr != null) visualSr.color = baseTint;
-        if (camp != null && camp.AddResident(this)) home = camp;
+        Carry = 0;
+        CancelJob();
+    }
+
+    public void Unassign()
+    {
+        if (!assigned) return;
+        assigned = false; job = null;
+        baseTint = Color.white;
+        Carry = 0;
+        CancelJob();
     }
 
     public void RandomizeStats()
@@ -170,7 +186,7 @@ public class Worker : MonoBehaviour
     }
 
 
-    private Sprite IconFor(ResourceKind k) { return k == ResourceKind.Wood ? woodIcon : stoneIcon; }
+    private Sprite IconFor(ResourceKind k) { return k == ResourceKind.Wood ? woodIcon : (k == ResourceKind.Fish && fishIcon != null ? fishIcon : stoneIcon); }
 
     // ------------------------------------------------------------ save / load
     public WorkerSave WriteSave(List<Building> buildingOrder)
@@ -221,13 +237,6 @@ public class Worker : MonoBehaviour
             case WorkerState.Waiting: TickWaiting(dt); break;
         }
 
-        if (State != WorkerState.Sleep)
-        {
-            // fatigue only builds while on the job
-            if (State == WorkerState.Gather || State == WorkerState.GoToNode || State == WorkerState.GoToStorage || State == WorkerState.Idle)
-                Fatigue = Mathf.Min(1f, Fatigue + dt / fatigueSeconds);
-        }
-
         UpdateVisuals(dt);
     }
 
@@ -250,6 +259,8 @@ public class Worker : MonoBehaviour
 
     private void Decide()
     {
+        if (!Employed) { Wait("No job", false, null); return; }
+
         // tired, or night time and we have a home: finish the delivery first (if any), then go to bed
         if (Fatigue >= 1f || WantsNightSleep)
         {
@@ -363,21 +374,11 @@ public class Worker : MonoBehaviour
             SetAnim(true, false);
             return true;
         }
-        if (home != null) { home.RemoveResident(this); home = null; }
-
-        bm.CollectByDistance(ResourceInfo.CampFor(gatherKind), transform.position, buildingBuffer);
-        for (int i = 0; i < buildingBuffer.Count; i++)
-        {
-            var camp = buildingBuffer[i];
-            if (camp.FreeSlots <= 0 || !TryPathToDoor(camp)) continue;
-            if (!camp.AddResident(this)) continue;
-            home = camp;
-            State = WorkerState.GoToBed;
-            SetAnim(true, false);
-            return true;
-        }
+        if (home != null) { home.RemoveResident(this); home = null; }   // BuildingManager.Rebalance hands out a new bed
         return false;
     }
+
+    public void TakeHome(Building house) { if (house.AddResident(this)) home = house; }
 
     // ------------------------------------------------------------ movement
     private delegate bool RepathFn();
@@ -512,10 +513,10 @@ public class Worker : MonoBehaviour
         Vector3 nodePos = GridManager.instance.CellToWorld(node.pos);
         Vector3 hit = Vector3.Lerp(transform.position, nodePos, 0.75f) + Vector3.up * 0.1f;
 
-        bool wood = gatherKind == ResourceKind.Wood;
+        bool wood = gatherKind == ResourceKind.Wood, fishing = gatherKind == ResourceKind.Fish;
         if (FxManager.Instance != null)
-            FxManager.Instance.Chips(hit, wood ? new Color(0.78f, 0.56f, 0.32f) : new Color(0.82f, 0.86f, 0.94f), wood ? 3 : 4);
-        GameAudio.PlayAt(wood ? Sfx.StrikeWood : Sfx.StrikeStone, nodePos, 0.8f);
+            FxManager.Instance.Chips(hit, fishing ? new Color(0.7f, 0.92f, 1f) : (wood ? new Color(0.78f, 0.56f, 0.32f) : new Color(0.82f, 0.86f, 0.94f)), wood ? 3 : 4);
+        GameAudio.PlayAt(fishing ? Sfx.Splash : (wood ? Sfx.StrikeWood : Sfx.StrikeStone), nodePos, 0.8f);
 
         strikesDone++;
         if (strikesDone < strikesPerUnit) return;
